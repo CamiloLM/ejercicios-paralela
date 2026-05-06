@@ -1,8 +1,7 @@
 package co.edu.unal.paralela;
 
-import java.util.ArrayList;
-import java.util.concurrent.ForkJoinTask;
 import java.util.concurrent.RecursiveAction;
+// import java.util.concurrent.ForkJoinPool;
 
 /**
  * Clase que contiene los métodos para implementar la suma de los recíprocos de
@@ -60,8 +59,7 @@ public final class ReciprocalArraySum {
    *         conjunto de
    *         nElements
    */
-  private static int getChunkStartInclusive(final int chunk,
-      final int nChunks, final int nElements) {
+  private static int getChunkStartInclusive(final int chunk, final int nChunks, final int nElements) {
     final int chunkSize = getChunkSize(nChunks, nElements);
     return chunk * chunkSize;
   }
@@ -77,8 +75,7 @@ public final class ReciprocalArraySum {
    *                  atravesarse
    * @return El índice de terminación exclusivo para esta sección/trozo (chunk)
    */
-  private static int getChunkEndExclusive(final int chunk, final int nChunks,
-      final int nElements) {
+  private static int getChunkEndExclusive(final int chunk, final int nChunks, final int nElements) {
     final int chunkSize = getChunkSize(nChunks, nElements);
     final int end = (chunk + 1) * chunkSize;
     if (end > nElements) {
@@ -138,10 +135,11 @@ public final class ReciprocalArraySum {
 
     @Override
     protected void compute() {
-      value = 0;
+      double localValue = 0;
       for (int i = this.startIndexInclusive; i < endIndexExclusive; i++) {
-        value += 1 / input[i];
+        localValue += 1.0 / input[i];
       }
+      this.value = localValue;
     }
   }
 
@@ -160,10 +158,14 @@ public final class ReciprocalArraySum {
     assert input.length % 2 == 0;
 
     double sum = 0;
-
     ReciprocalArraySumTask leftTask = new ReciprocalArraySumTask(0, input.length / 2, input);
     ReciprocalArraySumTask rightTask = new ReciprocalArraySumTask(input.length / 2, input.length, input);
-    ForkJoinTask.invokeAll(leftTask, rightTask);
+
+    // Al llamar a invokeAll estáticamente desde el hilo principal,
+    // Java detecta automáticamente el commonPool y ejecuta las tareas ahí
+    // con el máximo rendimiento y sin gastar tiempo en crear hilos nuevos.
+    RecursiveAction.invokeAll(leftTask, rightTask);
+
     sum += leftTask.getValue();
     sum += rightTask.getValue();
 
@@ -181,20 +183,19 @@ public final class ReciprocalArraySum {
    * @param numTasks El número de tareas para crear
    * @return La suma de los recíprocos del arreglo de entrada
    */
-  protected static double parManyTaskArraySum(final double[] input,
-      final int numTasks) {
+  protected static double parManyTaskArraySum(final double[] input, final int numTasks) {
     double sum = 0;
 
-    ArrayList<ReciprocalArraySumTask> tasks = new ArrayList<>(numTasks);
+    ReciprocalArraySumTask[] tasks = new ReciprocalArraySumTask[numTasks];
     for (int i = 0; i < numTasks; i++) {
       int startIndex = getChunkStartInclusive(i, numTasks, input.length);
       int endIndex = getChunkEndExclusive(i, numTasks, input.length);
-      tasks.add(new ReciprocalArraySumTask(startIndex, endIndex, input));
+      tasks[i] = new ReciprocalArraySumTask(startIndex, endIndex, input);
     }
-    ForkJoinTask.invokeAll(tasks);
+    RecursiveAction.invokeAll(tasks);
 
     for (int i = 0; i < numTasks; i++) {
-      sum += tasks.get(i).getValue();
+      sum += tasks[i].getValue();
     }
 
     return sum;
