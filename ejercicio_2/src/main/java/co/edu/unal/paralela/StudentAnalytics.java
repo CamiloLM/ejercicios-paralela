@@ -6,7 +6,6 @@ import java.util.Arrays;
 import java.util.Map;
 import java.util.HashMap;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 /**
  * Una clase 'envoltorio' (wrapper) para varios métodos analíticos.
@@ -46,18 +45,10 @@ public final class StudentAnalytics {
    * @return Edad promedio de los estudiantes registrados
    */
   public double averageAgeOfEnrolledStudentsParallelStream(final Student[] studentArray) {
-    double ageSum = Arrays.stream(studentArray)
+    return Arrays.stream(studentArray)
         .parallel()
         .filter(s -> s.checkIsCurrent())
-        .map(s -> s.getAge())
-        .reduce(0.0, (a, b) -> a + b);
-
-    long numElements = Arrays.stream(studentArray)
-        .parallel()
-        .filter(s -> s.checkIsCurrent())
-        .count();
-
-    return ageSum / numElements;
+        .collect(Collectors.averagingDouble(s -> s.getAge()));
   }
 
   /**
@@ -99,7 +90,7 @@ public final class StudentAnalytics {
   }
 
   /**
-   * PARA HACER calcula el nombre más común de todos los estudiantes que no están
+   * Calcula el nombre más común de todos los estudiantes que no están
    * activos
    * en la clase utilizando streams paralelos. Debe reflejar la funcionalidad
    * de mostCommonFirstNameOfInactiveStudentsImperative. Este método NO debe usar
@@ -109,19 +100,18 @@ public final class StudentAnalytics {
    * @return Nombre más comun de los estudiantes inactivos.
    */
   public String mostCommonFirstNameOfInactiveStudentsParallelStream(final Student[] studentArray) {
-    Map<String, Long> counts = Arrays.stream(studentArray)
+    return Arrays.stream(studentArray)
         .parallel()
         .filter(s -> !s.checkIsCurrent())
         .map(s -> s.getFirstName())
-        .collect(Collectors.groupingBy(name -> name, Collectors.counting()));
-
-    String mostCommon = counts.entrySet().stream()
-        .parallel()
+        .collect(Collectors.groupingByConcurrent(
+            name -> name,
+            Collectors.counting()))
+        .entrySet()
+        .parallelStream()
         .max(Map.Entry.comparingByValue())
-        .get()
-        .getKey();
-
-    return mostCommon;
+        .map(e -> e.getKey())
+        .orElse("");
   }
 
   /**
