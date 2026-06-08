@@ -107,8 +107,9 @@ public final class OneDimAveragingPhaser {
       final double[] myNew, final double[] myVal, final int n,
       final int tasks) {
 
-    Phaser[] phs = new Phaser[tasks];
-    for (int i = 0; i < phs.length; i++) {
+    final Phaser[] phs = new Phaser[tasks];
+
+    for (int i = 0; i < tasks; i++) {
       phs[i] = new Phaser(1);
     }
 
@@ -118,30 +119,57 @@ public final class OneDimAveragingPhaser {
       final int i = ii;
 
       threads[ii] = new Thread(() -> {
+
         double[] threadPrivateMyVal = myVal;
         double[] threadPrivateMyNew = myNew;
 
-        for (int iter = 0; iter < iterations; iter++) {
-          final int left = i * (n / tasks) + 1;
-          final int right = (i + 1) * (n / tasks);
+        final int left = i * (n / tasks) + 1;
+        final int right = (i + 1) * (n / tasks);
 
-          for (int j = left; j <= right; j++) {
-            threadPrivateMyNew[j] = (threadPrivateMyVal[j - 1]
-                + threadPrivateMyVal[j + 1]) / 2.0;
+        for (int iter = 0; iter < iterations; iter++) {
+
+          // No se ha ejecutado ninguna iteración
+          // los datos estan listos desde el inicio
+          if (iter == 0) {
+            for (int j = left; j <= right; j++) {
+              threadPrivateMyNew[j] = (threadPrivateMyVal[j - 1]
+                  + threadPrivateMyVal[j + 1]) / 2.0;
+            }
+
+          } else {
+            // Calculo de los puntos internos independientes
+            // ya que los datos estan en el bloque
+            for (int j = left + 1; j <= right - 1; j++) {
+              threadPrivateMyNew[j] = (threadPrivateMyVal[j - 1]
+                  + threadPrivateMyVal[j + 1]) / 2.0;
+            }
+
+            // Espera a que los bloques vecinos terminen
+            // por que depende de sus valores
+            if (i > 0) {
+              phs[i - 1].awaitAdvance(iter - 1);
+            }
+            if (i < tasks - 1) {
+              phs[i + 1].awaitAdvance(iter - 1);
+            }
+
+            // Calcula los extremos del bloque cuando terminen los vecinos
+            threadPrivateMyNew[left] = (threadPrivateMyVal[left - 1]
+                + threadPrivateMyVal[left + 1]) / 2.0;
+
+            threadPrivateMyNew[right] = (threadPrivateMyVal[right - 1]
+                + threadPrivateMyVal[right + 1]) / 2.0;
           }
+
+          // Actualiza el phaser del hilo para notificar a los vecinos
           phs[i].arrive();
-          if (i - 1 >= 0) {
-            phs[i - 1].awaitAdvance(1);
-          }
-          if (i + 1 < tasks) {
-            phs[i + 1].awaitAdvance(1);
-          }
 
           double[] temp = threadPrivateMyNew;
           threadPrivateMyNew = threadPrivateMyVal;
           threadPrivateMyVal = temp;
         }
       });
+
       threads[ii].start();
     }
 
