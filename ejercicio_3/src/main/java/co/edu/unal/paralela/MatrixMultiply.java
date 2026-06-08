@@ -52,7 +52,6 @@ public final class MatrixMultiply {
         // Multiplicación dentro del bloque; accum evita accesos repetidos a C[i][j]
         for (int i = iStart; i < iEnd; i++) {
           for (int j = jStart; j < jEnd; j++) {
-            C[i][j] = 0.0;
             double accum = 0.0;
             for (int k = kStart; k < kEnd; k++) {
               accum += A[i][k] * B[k][j];
